@@ -11,6 +11,10 @@ const c_safetyDistance = 15
 const c_goForwardDistance = 30
 const c_maxDisplayDistance = 30
 
+let g_scanDir = 1	
+let g_leftTrim = 0
+let g_rightTrim = 0
+
 const c_backupMelody = ["C6:3", "R:3"]
 const c_scanMelody = ["C3:1", "R:1", "C3:1", "R:1"]
 
@@ -37,19 +41,29 @@ function GoForward(speed: number, distanceInterval: number)
 		maqueen.readPatrol(maqueen.Patrol.PatrolLeft)
 	
 		if (dist < c_safetyDistance) {
-			maqueen.motorStop(maqueen.Motors.All)
+			MotorStop()
 			return ForwardExit.Distance
 		}
 
         let left = maqueen.readPatrol(maqueen.Patrol.PatrolLeft);
         let right = maqueen.readPatrol(maqueen.Patrol.PatrolRight);
         if(left == 0 || right == 0) {
-            maqueen.motorStop(maqueen.Motors.All)
+            MotorStop()
             return ForwardExit.Obstacle
         }
 
-		maqueen.motorRun(maqueen.Motors.All, maqueen.Dir.CW, speed)
+		MotorRun(maqueen.Motors.All, maqueen.Dir.CW, speed)
 	}
+}
+
+function MotorRun(motor: maqueen.Motors, dir: maqueen.Dir, speed: number)
+{
+    maqueen.motorRun(motor, dir, speed)
+}
+
+function MotorStop()
+{
+    maqueen.motorStop(maqueen.Motors.All)
 }
 
 function GetDist(samples: number, interval: number = 0) 
@@ -69,8 +83,6 @@ function GetDist(samples: number, interval: number = 0)
 	led.plotBarGraph(dist, c_maxDisplayDistance)
 	return dist
 }
-
-let g_scanDir = 1	
 
 function Scan()
 {
@@ -96,12 +108,12 @@ function Rotate(dir: number, ms: number)
 	let forwardMotor = dir < 0 ? maqueen.Motors.M1 : maqueen.Motors.M2 
 	let backwardMotor = dir < 0 ? maqueen.Motors.M2 : maqueen.Motors.M1
 	 
-	maqueen.motorRun(forwardMotor, maqueen.Dir.CW, c_maxSpeed)
-	maqueen.motorRun(backwardMotor, maqueen.Dir.CCW, c_maxSpeed)
+	MotorRun(forwardMotor, maqueen.Dir.CW, c_maxSpeed)
+	MotorRun(backwardMotor, maqueen.Dir.CCW, c_maxSpeed)
 
 	basic.pause(ms)
 
-	maqueen.motorStop(maqueen.Motors.All)
+    MotorStop()
 }
 
 function Backtrack()
@@ -128,10 +140,10 @@ function Backtrack()
         else if(left > 0 && right > 0) {
             // no longer obstacle. Back track a bit more.
             basic.pause(1000)
-            maqueen.motorStop(maqueen.Motors.All)
+            MotorStop()
             break
         }
-        maqueen.motorRun(motor, maqueen.Dir.CCW, c_slowSpeed)
+        MotorRun(motor, maqueen.Dir.CCW, c_slowSpeed)
     }
     music.stopMelody(MelodyStopOptions.All)
 }
