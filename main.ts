@@ -4,6 +4,14 @@ enum ForwardExit
     Obstacle
 }
 
+enum Command
+{
+    None = 0,
+    Reset = 1,
+    TrimLeft = 2,
+    TrimRight = 4
+}
+
 const c_maxSpeed = 64
 const c_slowSpeed = 32
 
@@ -11,13 +19,14 @@ const c_safetyDistance = 15
 const c_goForwardDistance = 30
 const c_maxDisplayDistance = 30
 
+let g_Command : Command = Command.None
 let g_scanDir = 1	
 let g_leftTrim = 0
 let g_rightTrim = 0
 
 const c_backupMelody = ["C6:3", "R:3"]
 const c_scanMelody = ["C3:1", "R:1", "C3:1", "R:1"]
-const c_setupComplete = ["C5:1", "R:1", "C5:1", "R:1", "C5:1", "R:1"]
+const c_setupMelody = ["C5:1", "R:1", "C5:1", "R:1", "C5:1", "R:1"]
 
 let pixel = neopixel.create(DigitalPin.P15, 4, NeoPixelMode.RGB)
 
@@ -34,43 +43,55 @@ basic.forever(function () {
     }
 })
 
+input.onButtonPressed(Button.A, function () {
+    g_Command |= Command.TrimRight
+})
+input.onButtonPressed(Button.B, function () {
+    g_Command |= Command.TrimLeft
+})
+input.onGesture(Gesture.Shake, function () {
+    g_Command |= Command.Reset
+})
+
 function TrySetup()
 {
-    const c_setupTimeout = 10000
+    const c_setupTimeout = 2000
     let startTime = input.runningTime()
-    let btnA = input.buttonIsPressed(Button.A)
-    let btnB = input.buttonIsPressed(Button.B)
 
-    if(!btnA && !btnB)
+    if(g_Command == Command.None)
     {
         return
     }
 
     MotorStop()
     pixel.showColor(neopixel.rgb(0,0,0))
+    music.stopMelody(MelodyStopOptions.All)
 
     do {
-        if(btnA && btnB) {
+        if(g_Command & Command.Reset) {
             g_leftTrim = g_rightTrim = 0
             basic.showString("Reset")
             let startTime = input.runningTime()
-        } else if(btnA) {
+        } else if(g_Command & Command.TrimRight) {
             g_rightTrim = Math.min(g_rightTrim + 1, c_maxSpeed)
             basic.showNumber(c_maxSpeed - g_rightTrim)  
             let startTime = input.runningTime()      
-        } else if(btnB) {
+        } else if(g_Command & Command.TrimLeft) {
             g_leftTrim = Math.min(g_leftTrim + 1, c_maxSpeed)
             basic.showNumber(c_maxSpeed - g_leftTrim)
             let startTime = input.runningTime()
         }
+        g_Command = Command.None
+        basic.pause(100)
     } while (input.runningTime() - startTime < c_setupTimeout)
 
-    music.startMelody(c_scanMelody, MelodyOptions.Once)
+    music.startMelody(c_setupMelody, MelodyOptions.Once)
     basic.pause(2000)
 }
 
 function GoForward(speed: number, distanceInterval: number)
 {
+    console.log("GoForward")
 	while (true) {
         TrySetup()
 		let dist = GetDist(5, distanceInterval)
@@ -132,6 +153,7 @@ function GetDist(samples: number, interval: number = 0)
 
 function Scan()
 {
+    console.log("Scan")
     music.startMelody(c_scanMelody, MelodyOptions.Once)
 	const timeIncrement = 100
 	let time = timeIncrement
@@ -166,6 +188,7 @@ function Rotate(dir: number, ms: number)
 
 function Backtrack()
 {
+    console.log("Backtrack")
     music.startMelody(c_backupMelody, MelodyOptions.ForeverInBackground)
 
     let motor = null
@@ -179,6 +202,7 @@ function Backtrack()
         if(motor == null) {
             if (left == 0 && right == 0) {
                 motor = g_scanDir > 0 ? maqueen.Motors.M1 : maqueen.Motors.M2
+                g_scanDir *= -1
             }
             else if(left == 0) {
                 motor = maqueen.Motors.M2
@@ -188,12 +212,14 @@ function Backtrack()
             }
         }
         else if(left > 0 && right > 0) {
-            // no longer obstacle. Back track a bit more.
-            basic.pause(1000)
-            MotorStop()
             break
         }
         MotorRun(motor, maqueen.Dir.CCW, c_slowSpeed)
+        basic.pause(10)
     }
+
+    // no longer obstacle. Back track a bit more.
+    basic.pause(1000)
+    MotorStop()
     music.stopMelody(MelodyStopOptions.All)
 }
